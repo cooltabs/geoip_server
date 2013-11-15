@@ -130,3 +130,7 @@ def encode data
     opts
   end
 end
+
+get '/ping' do
+  status 200
+end
