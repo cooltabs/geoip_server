@@ -2,7 +2,14 @@ require 'sinatra'
 require 'geoip'
 require 'multi_json'
 
-data_file = File.expand_path(File.join(File.dirname(__FILE__), '..', 'vendor', 'GeoLiteCity.dat'))
+if ENV["USE_CITY_DB"]
+  file = 'GeoLiteCity.dat'
+  USE_CITY = true
+else
+  file = 'GeoIP.dat'
+  USE_CITY = false
+end
+DATA_FILE = File.expand_path(File.join(File.dirname(__FILE__), '..', 'vendor', file))
 
 configure :production do
   begin
@@ -62,7 +69,8 @@ END
 end
 
 get /\/(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/ do |ip|
-  data = GeoIP.new(data_file).city(ip)
+  
+  data = GeoIP.new(DATA_FILE).send(USE_CITY ? :city : :country, ip)
   content_type 'application/json;charset=ascii-8bit'
   headers['Cache-Control'] = "public; max-age=31536000" # = 365 (days) * 24 (hours) * 60 (minutes) * 60 (seconds)
   return "{}" unless data
@@ -84,7 +92,7 @@ def respond_with json
 end
 
 def encode data
-  {
+  opts = {
     # The host or IP address string as requested
     :ip => data.request,
     # The IP address string after looking up the host
@@ -97,21 +105,28 @@ def encode data
     :country => data.country_name,
     # The two-character continent code
     :continent => data.continent_code,
-    # The region name
-    :region => data.region_name,
-    # The city name
-    :city => data.city_name,
-    # The postal code
-    :postal_code => data.postal_code,
-    # The latitude
-    :lat => data.latitude,
-    # The longitude
-    :lng => data.longitude,
-    # The USA DMA code, if available
-    :dma_code => data.dma_code,
-    # The area code, if available
-    :area_code => data.area_code,
-    # Timezone, if available
-    :timezone => data.timezone,
   }
+
+  if USE_CITY
+    opts.merge(
+      # The region name
+      :region => data.region_name,
+      # The city name
+      :city => data.city_name,
+      # The postal code
+      :postal_code => data.postal_code,
+      # The latitude
+      :lat => data.latitude,
+      # The longitude
+      :lng => data.longitude,
+      # The USA DMA code, if available
+      :dma_code => data.dma_code,
+      # The area code, if available
+      :area_code => data.area_code,
+      # Timezone, if available
+      :timezone => data.timezone,
+      )
+  else
+    opts
+  end
 end
